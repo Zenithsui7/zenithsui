@@ -1,0 +1,499 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: FusionHub API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: apps
+    description: App management operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          description: Relative path to redirect to after login (must start with `/`). Defaults to `/`.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect to the `returnTo` path on success or `/api/login` on failure.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to the OIDC provider logout URL.
+
+  /apps:
+    get:
+      operationId: listApps
+      tags: [apps]
+      summary: List all apps for the current user
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Search apps by name or URL
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by category
+      responses:
+        "200":
+          description: List of apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/App"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    post:
+      operationId: createApp
+      tags: [apps]
+      summary: Create a new app
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppBody"
+      responses:
+        "201":
+          description: App created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /apps/stats:
+    get:
+      operationId: getAppStats
+      tags: [apps]
+      summary: Get usage statistics for current user's apps
+      responses:
+        "200":
+          description: App stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppStats"
+        "401":
+          description: Unauthorized
+
+  /apps/favorites:
+    get:
+      operationId: listFavoriteApps
+      tags: [apps]
+      summary: List favorite apps for the current user
+      responses:
+        "200":
+          description: Favorite apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/App"
+        "401":
+          description: Unauthorized
+
+  /apps/recent:
+    get:
+      operationId: listRecentApps
+      tags: [apps]
+      summary: List recently launched apps
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+      responses:
+        "200":
+          description: Recently used apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/App"
+        "401":
+          description: Unauthorized
+
+  /apps/reorder:
+    put:
+      operationId: reorderApps
+      tags: [apps]
+      summary: Reorder apps by updating their positions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderAppsBody"
+      responses:
+        "200":
+          description: Apps reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
+        "401":
+          description: Unauthorized
+
+  /apps/{id}:
+    get:
+      operationId: getApp
+      tags: [apps]
+      summary: Get a specific app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: App details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "404":
+          description: App not found
+    put:
+      operationId: updateApp
+      tags: [apps]
+      summary: Update an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAppBody"
+      responses:
+        "200":
+          description: Updated app
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "404":
+          description: App not found
+    delete:
+      operationId: deleteApp
+      tags: [apps]
+      summary: Delete an app
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: App deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
+        "404":
+          description: App not found
+
+  /apps/{id}/launch:
+    post:
+      operationId: launchApp
+      tags: [apps]
+      summary: Record an app launch (increments launch count)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Launch recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "404":
+          description: App not found
+
+components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — `Bearer <sid>`.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    App:
+      type: object
+      required: [id, userId, name, url, icon, color, isFavorite, position, category, launchCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        icon:
+          type: string
+          description: Emoji or image URL used as the app icon
+        color:
+          type: string
+          description: Accent color for the app card (hex)
+        isFavorite:
+          type: boolean
+        position:
+          type: integer
+        category:
+          type: string
+        launchCount:
+          type: integer
+        lastLaunchedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateAppBody:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        url:
+          type: string
+          minLength: 1
+        icon:
+          type: string
+          default: "🌐"
+        color:
+          type: string
+          default: "#f97316"
+        category:
+          type: string
+          default: "General"
+        isFavorite:
+          type: boolean
+          default: false
+
+    UpdateAppBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        url:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+        category:
+          type: string
+        isFavorite:
+          type: boolean
+        position:
+          type: integer
+
+    ReorderAppsBody:
+      type: object
+      required: [order]
+      properties:
+        order:
+          type: array
+          items:
+            type: object
+            required: [id, position]
+            properties:
+              id:
+                type: integer
+              position:
+                type: integer
+
+    AppStats:
+      type: object
+      required: [totalApps, favoriteApps, totalLaunches, categoryCounts]
+      properties:
+        totalApps:
+          type: integer
+        favoriteApps:
+          type: integer
+        totalLaunches:
+          type: integer
+        categoryCounts:
+          type: array
+          items:
+            type: object
+            required: [category, count]
+            properties:
+              category:
+                type: string
+              count:
+                type: integer
