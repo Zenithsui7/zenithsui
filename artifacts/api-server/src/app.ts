@@ -38,7 +38,7 @@ const frontendDist = path.resolve(__dirname, "../../artifacts/fusion-hub/dist/pu
 app.use(express.static(frontendDist));
 
 // SPA fallback — send index.html for any non-API route
-app.get("*", (_req, res) => {
+app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 

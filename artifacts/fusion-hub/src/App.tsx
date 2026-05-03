@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -11,7 +11,7 @@ function Router() {
   return (
     <Shell>
       <Switch>
-        <Route path="/" component={() => <Redirect to="/apps" />} />
+        <Route path="/" component={AppsList} />
         <Route path="/apps" component={AppsList} />
         <Route component={NotFound} />
       </Switch>
@@ -27,7 +27,7 @@ function App() {
   return (
     <TooltipProvider>
       <OwnerProvider>
-        <WouterRouter base={import.meta.env.PROD ? "/zenithsui" : import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
         </WouterRouter>
         <Toaster />
