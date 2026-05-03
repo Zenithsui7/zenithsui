@@ -85,14 +85,25 @@ export default function AddAppDialog() {
     return form.getValues("icon") || "🌐";
   };
 
-  const onSubmit = (values: FormValues) => {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const onSubmit = async (values: FormValues) => {
+    setSaving(true);
+    setSaveError("");
     const url = values.url.startsWith("http") ? values.url : `https://${values.url}`;
     const icon = getResolvedIcon();
-    createApp({ ...values, url, icon });
+    const result = await createApp({ ...values, url, icon });
+    setSaving(false);
+    if (!result.ok) {
+      setSaveError(result.error ?? "Failed to save app.");
+      return;
+    }
     form.reset();
     resetImageState();
     setIconTab("emoji");
     setImageMode("upload");
+    setSaveError("");
     setOpen(false);
   };
 
@@ -243,9 +254,16 @@ export default function AddAppDialog() {
               </FormItem>
             )} />
 
+            {saveError && (
+              <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                {saveError}
+              </p>
+            )}
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" className="shadow-lg shadow-primary/20">Add App</Button>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+              <Button type="submit" disabled={saving} className="shadow-lg shadow-primary/20">
+                {saving ? "Saving…" : "Add App"}
+              </Button>
             </div>
           </form>
         </Form>

@@ -5,6 +5,7 @@ import AppCard from "@/components/AppCard";
 import AddAppDialog from "@/components/AddAppDialog";
 import { useOwner } from "@/contexts/OwnerContext";
 import { useApps, useDeleteApp, useLaunchApp } from "@/lib/useApps";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AppsList() {
   const [search, setSearch] = useState("");
@@ -12,10 +13,18 @@ export default function AppsList() {
   const apps = useApps(search);
   const deleteApp = useDeleteApp();
   const launchApp = useLaunchApp();
+  const { toast } = useToast();
 
   const handleOpen = (app: { id: number; url: string }) => {
     launchApp(app.id);
     window.open(app.url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDelete = async (id: number) => {
+    const result = await deleteApp(id);
+    if (!result.ok) {
+      toast({ title: "Could not delete", description: result.error, variant: "destructive" });
+    }
   };
 
   return (
@@ -55,7 +64,7 @@ export default function AppsList() {
               key={app.id}
               app={app}
               onOpen={() => handleOpen(app)}
-              onDelete={() => deleteApp(app.id)}
+              onDelete={() => handleDelete(app.id)}
               isOwner={isOwner}
             />
           ))}

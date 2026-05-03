@@ -105,7 +105,10 @@ async function pushToGitHub(apps: App[]) {
   }
 }
 
-export async function createApp(data: Pick<App, "name" | "url" | "icon" | "color">): Promise<App> {
+export async function createApp(data: Pick<App, "name" | "url" | "icon" | "color">): Promise<{ ok: boolean; error?: string }> {
+  const token = getToken();
+  if (!token) return { ok: false, error: "Enter your GitHub token in Owner login first." };
+
   const app: App = {
     ...data,
     id: Date.now(),
@@ -115,14 +118,32 @@ export async function createApp(data: Pick<App, "name" | "url" | "icon" | "color
   };
   _apps = [..._apps, app];
   notify();
-  await pushToGitHub(_apps);
-  return app;
+  try {
+    await pushToGitHub(_apps);
+    return { ok: true };
+  } catch (e: unknown) {
+    // Roll back optimistic update on failure
+    _apps = _apps.filter((a) => a.id !== app.id);
+    notify();
+    return { ok: false, error: e instanceof Error ? e.message : "GitHub write failed" };
+  }
 }
 
-export async function deleteApp(id: number) {
+export async function deleteApp(id: number): Promise<{ ok: boolean; error?: string }> {
+  const token = getToken();
+  if (!token) return { ok: false, error: "Enter your GitHub token in Owner login first." };
+
+  const prev = _apps;
   _apps = _apps.filter((a) => a.id !== id);
   notify();
-  await pushToGitHub(_apps);
+  try {
+    await pushToGitHub(_apps);
+    return { ok: true };
+  } catch (e: unknown) {
+    _apps = prev;
+    notify();
+    return { ok: false, error: e instanceof Error ? e.message : "GitHub write failed" };
+  }
 }
 
 export async function launchApp(id: number) {
