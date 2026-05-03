@@ -1,0 +1,14 @@
+{
+  "apps": [
+    {
+      "id": 1,
+      "name": "QZen",
+      "url": "https://zenithsui7.github.io/qzen/#",
+      "icon": "🌐",
+      "color": "#f97316",
+      "launchCount": 0,
+      "lastLaunchedAt": null,
+      "position": 0
+    }
+  ]
+}
