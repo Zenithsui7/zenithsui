@@ -26,9 +26,19 @@
       "icon": "🔍",
       "color": "#f97316",
       "id": 1777792546880,
+      "launchCount": 1,
+      "lastLaunchedAt": "2026-05-03T07:15:50.278Z",
+      "position": 2
+    },
+    {
+      "name": "Izen",
+      "url": "https://zenithsui7.github.io/izen-iq-app/",
+      "icon": "🎯",
+      "color": "#f97316",
+      "id": 1777792828925,
       "launchCount": 0,
       "lastLaunchedAt": null,
-      "position": 2
+      "position": 3
     }
   ]
 }
