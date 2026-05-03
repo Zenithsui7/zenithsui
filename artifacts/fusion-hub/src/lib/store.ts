@@ -9,11 +9,20 @@ export interface App {
   position: number;
 }
 
+// ── Environment detection ──────────────────────────────────────────────────
 const isGitHubPages = typeof window !== "undefined" &&
   (window.location.hostname.endsWith("github.io") ||
    window.location.hostname.endsWith("js.org"));
 
-const LS_KEY = "zenithsui_apps";
+// ── GitHub file store constants ────────────────────────────────────────────
+const GH_OWNER  = "Zenithsui7";
+const GH_REPO   = "Zenithsui7.github.io";
+const GH_BRANCH = "gh-pages";
+const GH_FILE   = "data.json";
+const GH_RAW    = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_FILE}`;
+const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
+// Token is baked in at build time — never visible in the UI
+const GH_TOKEN  = import.meta.env.VITE_GH_TOKEN as string | undefined;
 
 export const DEFAULT_APPS: App[] = [
   { id: 1, name: "YouTube",  url: "https://youtube.com",          icon: "▶️",  color: "#ef4444", launchCount: 0, lastLaunchedAt: null, position: 0 },
@@ -32,33 +41,28 @@ let _initialized = false;
 
 function notify() { listeners.forEach((l) => l()); }
 
-// ── localStorage helpers (GitHub Pages) ────────────────────────────────────
-function lsLoad(): App[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw) as App[];
-  } catch { /* ignore */ }
-  return DEFAULT_APPS;
-}
-
-function lsSave(apps: App[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(apps));
-}
-
-// ── Init ───────────────────────────────────────────────────────────────────
+// ── Init: load from correct source ────────────────────────────────────────
 async function init() {
   if (_initialized) return;
   _initialized = true;
-  if (isGitHubPages) {
-    _apps = lsLoad();
-    notify();
-  } else {
-    try {
+  try {
+    if (isGitHubPages) {
+      // Everyone reads the shared data.json — no auth needed for reads
+      const res = await fetch(`${GH_RAW}?t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        _apps = Array.isArray(data.apps) ? data.apps : DEFAULT_APPS;
+      } else {
+        _apps = DEFAULT_APPS;
+      }
+    } else {
       const res = await fetch("/api/apps");
       if (res.ok) _apps = await res.json();
-    } catch { _apps = DEFAULT_APPS; }
-    notify();
+    }
+  } catch {
+    _apps = DEFAULT_APPS;
   }
+  notify();
 }
 
 init();
@@ -69,6 +73,29 @@ export function subscribe(fn: () => void) {
 }
 
 export function getApps(): App[] { return _apps; }
+
+// ── GitHub file write (owner only, token baked in) ─────────────────────────
+async function pushToGitHub(apps: App[]) {
+  if (!GH_TOKEN) throw new Error("NO_TOKEN");
+  const headers: Record<string, string> = {
+    Authorization: `token ${GH_TOKEN}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+  };
+  const metaRes = await fetch(`${GH_API}?ref=${GH_BRANCH}`, { headers });
+  const meta = await metaRes.json();
+  const body = JSON.stringify({
+    message: "update: apps data",
+    content: btoa(unescape(encodeURIComponent(JSON.stringify({ apps }, null, 2)))),
+    branch: GH_BRANCH,
+    ...(meta.sha ? { sha: meta.sha } : {}),
+  });
+  const put = await fetch(GH_API, { method: "PUT", headers, body });
+  if (!put.ok) {
+    const e = await put.json();
+    throw new Error(e.message || "GitHub write failed");
+  }
+}
 
 // ── API helpers (Replit) ───────────────────────────────────────────────────
 async function apiCreate(data: Pick<App, "name" | "url" | "icon" | "color">): Promise<App> {
@@ -100,14 +127,21 @@ export async function createApp(
     if (isGitHubPages) {
       const app: App = { ...data, id: Date.now(), launchCount: 0, lastLaunchedAt: null, position: _apps.length };
       _apps = [..._apps, app];
-      lsSave(_apps);
       notify();
+      try {
+        await pushToGitHub(_apps);
+        return { ok: true };
+      } catch (e) {
+        _apps = _apps.filter((a) => a.id !== app.id);
+        notify();
+        throw e;
+      }
     } else {
       const app = await apiCreate(data);
       _apps = [..._apps, app];
       notify();
+      return { ok: true };
     }
-    return { ok: true };
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed to save" };
   }
@@ -116,15 +150,23 @@ export async function createApp(
 export async function deleteApp(id: number): Promise<{ ok: boolean; error?: string }> {
   try {
     if (isGitHubPages) {
+      const prev = _apps;
       _apps = _apps.filter((a) => a.id !== id);
-      lsSave(_apps);
       notify();
+      try {
+        await pushToGitHub(_apps);
+        return { ok: true };
+      } catch (e) {
+        _apps = prev;
+        notify();
+        throw e;
+      }
     } else {
       await apiDelete(id);
       _apps = _apps.filter((a) => a.id !== id);
       notify();
+      return { ok: true };
     }
-    return { ok: true };
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed to delete" };
   }
@@ -136,8 +178,8 @@ export async function launchApp(id: number) {
       _apps = _apps.map((a) =>
         a.id === id ? { ...a, launchCount: a.launchCount + 1, lastLaunchedAt: new Date().toISOString() } : a
       );
-      lsSave(_apps);
       notify();
+      pushToGitHub(_apps).catch(() => {});
     } else {
       const updated = await apiLaunch(id);
       _apps = _apps.map((a) => (a.id === id ? { ...a, ...updated } : a));
