@@ -1,10 +1,11 @@
-import { ReactNode, useState } from "react";
-import { Lock, LockOpen, Eye, EyeOff } from "lucide-react";
+import { ReactNode, useState, useEffect } from "react";
+import { Lock, LockOpen, Eye, EyeOff, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOwner } from "@/contexts/OwnerContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getToken, setToken } from "@/lib/useApps";
 
 interface ShellProps {
   children: ReactNode;
@@ -14,13 +15,21 @@ export default function Shell({ children }: ShellProps) {
   const { isOwner, unlock, lock } = useOwner();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [password, setPassword] = useState("");
+  const [token, setTokenInput] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [showToken, setShowToken] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (dialogOpen) setTokenInput(getToken());
+  }, [dialogOpen]);
 
   const handleUnlock = () => {
     const ok = unlock(password);
     if (ok) {
+      if (token.trim()) setToken(token.trim());
       setPassword("");
+      setTokenInput("");
       setError("");
       setDialogOpen(false);
     } else {
@@ -120,11 +129,12 @@ export default function Shell({ children }: ShellProps) {
               Owner Access
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-1">
+          <div className="space-y-3 pt-1">
+            {/* Password */}
             <div className="relative">
               <Input
                 type={showPw ? "text" : "password"}
-                placeholder="Enter owner password"
+                placeholder="Owner password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
@@ -140,7 +150,32 @@ export default function Shell({ children }: ShellProps) {
               </button>
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
-            <div className="flex gap-2 justify-end">
+
+            {/* GitHub token */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Github className="w-3 h-3" />
+                GitHub token <span className="opacity-50">(for cross-device sync)</span>
+              </p>
+              <div className="relative">
+                <Input
+                  type={showToken ? "text" : "password"}
+                  placeholder="ghp_xxxxxxxxxxxx"
+                  value={token}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  className="pr-10 bg-white/5 border-white/10 text-xs font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
               <Button variant="ghost" size="sm" onClick={() => setDialogOpen(false)}>Cancel</Button>
               <Button size="sm" onClick={handleUnlock} className="shadow-lg shadow-primary/20">
                 Unlock

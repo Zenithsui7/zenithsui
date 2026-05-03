@@ -7,6 +7,8 @@ import {
   launchApp,
   getStats,
   getRecent,
+  getToken,
+  setToken,
   type App,
 } from "./store";
 
@@ -44,3 +46,5 @@ export function useDeleteApp() {
 export function useLaunchApp() {
   return useCallback((id: number) => launchApp(id), []);
 }
+
+export { getToken, setToken };
