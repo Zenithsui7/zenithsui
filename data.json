@@ -6,9 +6,19 @@
       "url": "https://zenithsui7.github.io/qzen/#",
       "icon": "🌐",
       "color": "#f97316",
+      "launchCount": 1,
+      "lastLaunchedAt": "2026-05-03T06:36:39.863Z",
+      "position": 0
+    },
+    {
+      "name": "Owner IG",
+      "url": "https://www.instagram.com/zenith.amit?igsh=MWUzcTFkaG5lZHV1bA==",
+      "icon": "📱",
+      "color": "#f97316",
+      "id": 1777790384600,
       "launchCount": 0,
       "lastLaunchedAt": null,
-      "position": 0
+      "position": 1
     }
   ]
 }
