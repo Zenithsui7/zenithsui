@@ -96,7 +96,13 @@ async function pushToGitHub(apps: App[]) {
     ...(meta.sha ? { sha: meta.sha } : {}),
   });
   const put = await fetch(GH_API, { method: "PUT", headers, body });
-  if (!put.ok) { const e = await put.json(); throw new Error(e.message || "GitHub write failed"); }
+  if (!put.ok) {
+    const e = await put.json();
+    const msg: string = e.message || "GitHub write failed";
+    if (msg.toLowerCase().includes("bad credential") || msg.toLowerCase().includes("unauthorized"))
+      throw new Error("BAD_TOKEN");
+    throw new Error(msg);
+  }
 }
 
 // ── API write (Replit) ─────────────────────────────────────────────────────
@@ -140,7 +146,8 @@ export async function createApp(
       return { ok: true };
     }
   } catch (e: unknown) {
-    return { ok: false, error: e instanceof Error ? e.message : "Failed to save" };
+    const msg = e instanceof Error ? e.message : "Failed to save";
+    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub token is invalid or expired — update it in Owner login." : msg };
   }
 }
 
@@ -160,7 +167,8 @@ export async function deleteApp(id: number): Promise<{ ok: boolean; error?: stri
       return { ok: true };
     }
   } catch (e: unknown) {
-    return { ok: false, error: e instanceof Error ? e.message : "Failed to delete" };
+    const msg = e instanceof Error ? e.message : "Failed to delete";
+    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub token is invalid or expired — update it in Owner login." : msg };
   }
 }
 
