@@ -9,19 +9,11 @@ export interface App {
   position: number;
 }
 
-// ── Environment detection ──────────────────────────────────────────────────
 const isGitHubPages = typeof window !== "undefined" &&
   (window.location.hostname.endsWith("github.io") ||
    window.location.hostname.endsWith("js.org"));
 
-// ── GitHub file store constants ────────────────────────────────────────────
-const GH_OWNER  = "Zenithsui7";
-const GH_REPO   = "Zenithsui7.github.io";
-const GH_BRANCH = "gh-pages";
-const GH_FILE   = "data.json";
-const GH_RAW    = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_FILE}`;
-const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
-const GH_TOKEN  = import.meta.env.VITE_GH_TOKEN as string | undefined;
+const LS_KEY = "zenithsui_apps";
 
 export const DEFAULT_APPS: App[] = [
   { id: 1, name: "YouTube",  url: "https://youtube.com",          icon: "▶️",  color: "#ef4444", launchCount: 0, lastLaunchedAt: null, position: 0 },
@@ -40,22 +32,33 @@ let _initialized = false;
 
 function notify() { listeners.forEach((l) => l()); }
 
+// ── localStorage helpers (GitHub Pages) ────────────────────────────────────
+function lsLoad(): App[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw) as App[];
+  } catch { /* ignore */ }
+  return DEFAULT_APPS;
+}
+
+function lsSave(apps: App[]) {
+  localStorage.setItem(LS_KEY, JSON.stringify(apps));
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   if (_initialized) return;
   _initialized = true;
-  try {
-    if (isGitHubPages) {
-      const res = await fetch(`${GH_RAW}?t=${Date.now()}`);
-      _apps = res.ok ? (await res.json()).apps ?? DEFAULT_APPS : DEFAULT_APPS;
-    } else {
+  if (isGitHubPages) {
+    _apps = lsLoad();
+    notify();
+  } else {
+    try {
       const res = await fetch("/api/apps");
       if (res.ok) _apps = await res.json();
-    }
-  } catch {
-    _apps = DEFAULT_APPS;
+    } catch { _apps = DEFAULT_APPS; }
+    notify();
   }
-  notify();
 }
 
 init();
@@ -67,34 +70,7 @@ export function subscribe(fn: () => void) {
 
 export function getApps(): App[] { return _apps; }
 
-// ── GitHub file write ──────────────────────────────────────────────────────
-async function pushToGitHub(apps: App[]) {
-  const token = GH_TOKEN;
-  if (!token) throw new Error("NO_TOKEN");
-  const headers: Record<string, string> = {
-    Authorization: `token ${token}`,
-    Accept: "application/vnd.github+json",
-    "Content-Type": "application/json",
-  };
-  const metaRes = await fetch(`${GH_API}?ref=${GH_BRANCH}`, { headers });
-  const meta = await metaRes.json();
-  const body = JSON.stringify({
-    message: "update: apps data",
-    content: btoa(unescape(encodeURIComponent(JSON.stringify({ apps }, null, 2)))),
-    branch: GH_BRANCH,
-    ...(meta.sha ? { sha: meta.sha } : {}),
-  });
-  const put = await fetch(GH_API, { method: "PUT", headers, body });
-  if (!put.ok) {
-    const e = await put.json();
-    const msg: string = e.message || "GitHub write failed";
-    if (msg.toLowerCase().includes("bad credential") || msg.toLowerCase().includes("unauthorized"))
-      throw new Error("BAD_TOKEN");
-    throw new Error(msg);
-  }
-}
-
-// ── API write (Replit) ─────────────────────────────────────────────────────
+// ── API helpers (Replit) ───────────────────────────────────────────────────
 async function apiCreate(data: Pick<App, "name" | "url" | "icon" | "color">): Promise<App> {
   const res = await fetch("/api/apps", {
     method: "POST",
@@ -116,7 +92,7 @@ async function apiLaunch(id: number): Promise<App> {
   return res.json();
 }
 
-// ── Public store actions ───────────────────────────────────────────────────
+// ── Public actions ─────────────────────────────────────────────────────────
 export async function createApp(
   data: Pick<App, "name" | "url" | "icon" | "color">
 ): Promise<{ ok: boolean; error?: string }> {
@@ -124,38 +100,33 @@ export async function createApp(
     if (isGitHubPages) {
       const app: App = { ...data, id: Date.now(), launchCount: 0, lastLaunchedAt: null, position: _apps.length };
       _apps = [..._apps, app];
+      lsSave(_apps);
       notify();
-      try { await pushToGitHub(_apps); return { ok: true }; }
-      catch (e) { _apps = _apps.filter((a) => a.id !== app.id); notify(); throw e; }
     } else {
       const app = await apiCreate(data);
       _apps = [..._apps, app];
       notify();
-      return { ok: true };
     }
+    return { ok: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Failed to save";
-    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub sync token is invalid. Contact the site owner." : msg };
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to save" };
   }
 }
 
 export async function deleteApp(id: number): Promise<{ ok: boolean; error?: string }> {
   try {
     if (isGitHubPages) {
-      const prev = _apps;
       _apps = _apps.filter((a) => a.id !== id);
+      lsSave(_apps);
       notify();
-      try { await pushToGitHub(_apps); return { ok: true }; }
-      catch (e) { _apps = prev; notify(); throw e; }
     } else {
       await apiDelete(id);
       _apps = _apps.filter((a) => a.id !== id);
       notify();
-      return { ok: true };
     }
+    return { ok: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Failed to delete";
-    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub sync token is invalid. Contact the site owner." : msg };
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to delete" };
   }
 }
 
@@ -165,8 +136,8 @@ export async function launchApp(id: number) {
       _apps = _apps.map((a) =>
         a.id === id ? { ...a, launchCount: a.launchCount + 1, lastLaunchedAt: new Date().toISOString() } : a
       );
+      lsSave(_apps);
       notify();
-      pushToGitHub(_apps).catch(() => {});
     } else {
       const updated = await apiLaunch(id);
       _apps = _apps.map((a) => (a.id === id ? { ...a, ...updated } : a));
