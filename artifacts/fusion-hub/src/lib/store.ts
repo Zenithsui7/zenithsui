@@ -10,8 +10,6 @@ export interface App {
 }
 
 // ── Environment detection ──────────────────────────────────────────────────
-// On GitHub Pages (github.io / js.org) → use GitHub file as data store
-// On Replit (dev or deployed)           → use the Express API + PostgreSQL
 const isGitHubPages = typeof window !== "undefined" &&
   (window.location.hostname.endsWith("github.io") ||
    window.location.hostname.endsWith("js.org"));
@@ -23,7 +21,7 @@ const GH_BRANCH = "gh-pages";
 const GH_FILE   = "data.json";
 const GH_RAW    = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_FILE}`;
 const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
-const TOKEN_KEY = "gh_sync_token";
+const GH_TOKEN  = import.meta.env.VITE_GH_TOKEN as string | undefined;
 
 export const DEFAULT_APPS: App[] = [
   { id: 1, name: "YouTube",  url: "https://youtube.com",          icon: "▶️",  color: "#ef4444", launchCount: 0, lastLaunchedAt: null, position: 0 },
@@ -42,23 +40,14 @@ let _initialized = false;
 
 function notify() { listeners.forEach((l) => l()); }
 
-// ── Token helpers (GitHub Pages mode only) ─────────────────────────────────
-export function getToken(): string { return localStorage.getItem(TOKEN_KEY) || ""; }
-export function setToken(t: string) { localStorage.setItem(TOKEN_KEY, t.trim()); }
-
-// ── Init: load from correct source ────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   if (_initialized) return;
   _initialized = true;
   try {
     if (isGitHubPages) {
       const res = await fetch(`${GH_RAW}?t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
-        _apps = Array.isArray(data.apps) ? data.apps : DEFAULT_APPS;
-      } else {
-        _apps = DEFAULT_APPS;
-      }
+      _apps = res.ok ? (await res.json()).apps ?? DEFAULT_APPS : DEFAULT_APPS;
     } else {
       const res = await fetch("/api/apps");
       if (res.ok) _apps = await res.json();
@@ -80,7 +69,7 @@ export function getApps(): App[] { return _apps; }
 
 // ── GitHub file write ──────────────────────────────────────────────────────
 async function pushToGitHub(apps: App[]) {
-  const token = getToken();
+  const token = GH_TOKEN;
   if (!token) throw new Error("NO_TOKEN");
   const headers: Record<string, string> = {
     Authorization: `token ${token}`,
@@ -133,7 +122,6 @@ export async function createApp(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     if (isGitHubPages) {
-      if (!getToken()) return { ok: false, error: "Enter your GitHub token in Owner login first." };
       const app: App = { ...data, id: Date.now(), launchCount: 0, lastLaunchedAt: null, position: _apps.length };
       _apps = [..._apps, app];
       notify();
@@ -147,14 +135,13 @@ export async function createApp(
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed to save";
-    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub token is invalid or expired — update it in Owner login." : msg };
+    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub sync token is invalid. Contact the site owner." : msg };
   }
 }
 
 export async function deleteApp(id: number): Promise<{ ok: boolean; error?: string }> {
   try {
     if (isGitHubPages) {
-      if (!getToken()) return { ok: false, error: "Enter your GitHub token in Owner login first." };
       const prev = _apps;
       _apps = _apps.filter((a) => a.id !== id);
       notify();
@@ -168,7 +155,7 @@ export async function deleteApp(id: number): Promise<{ ok: boolean; error?: stri
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed to delete";
-    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub token is invalid or expired — update it in Owner login." : msg };
+    return { ok: false, error: msg === "BAD_TOKEN" ? "GitHub sync token is invalid. Contact the site owner." : msg };
   }
 }
 
