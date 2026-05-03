@@ -39,6 +39,16 @@
       "launchCount": 0,
       "lastLaunchedAt": null,
       "position": 3
+    },
+    {
+      "name": "Snake Game",
+      "url": "https://zenithsui7.github.io/snake-game/",
+      "icon": "🐍",
+      "color": "#f97316",
+      "id": 1777796993179,
+      "launchCount": 0,
+      "lastLaunchedAt": null,
+      "position": 4
     }
   ]
 }
