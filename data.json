@@ -19,6 +19,16 @@
       "launchCount": 0,
       "lastLaunchedAt": null,
       "position": 1
+    },
+    {
+      "name": "ZenKart",
+      "url": "https://zenithsui7.github.io/zenkart/",
+      "icon": "🔍",
+      "color": "#f97316",
+      "id": 1777792546880,
+      "launchCount": 0,
+      "lastLaunchedAt": null,
+      "position": 2
     }
   ]
 }
