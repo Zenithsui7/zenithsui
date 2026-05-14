@@ -59,6 +59,16 @@
       "launchCount": 1,
       "lastLaunchedAt": "2026-05-13T09:04:08.992Z",
       "position": 5
+    },
+    {
+      "name": "Y2Mate",
+      "url": "https://y2mate.ws/",
+      "icon": "▶️",
+      "color": "#f97316",
+      "id": 1778737969092,
+      "launchCount": 0,
+      "lastLaunchedAt": null,
+      "position": 6
     }
   ]
 }
